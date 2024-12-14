@@ -1,0 +1,97 @@
+services:
+  mariadb:
+    image: mariadb:v1
+    init: true
+    container_name: mariadb
+    build: ./requirements/mariadb
+    networks:
+      - docker-network
+    restart: always
+    environment:
+      - MYSQL_DB=${MYSQL_DB}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_REMOTE_HOST=${MYSQL_REMOTE_HOST}
+      - MYSQL_REMOTE_PASSWORD=${MYSQL_REMOTE_PASSWORD}
+    volumes:
+      - mariadb:/var/lib/mysql
+    profiles:
+      - main
+    healthcheck:
+      test: "mysql -u ${MYSQL_USER} --password=${MYSQL_PASSWORD} -e 'SELECT 1;' || exit 1"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+  wordpress:
+    image: wordpress:v1
+    init: true
+    container_name: wordpress
+    build: ./requirements/wordpress
+    networks:
+      - docker-network
+    restart: always
+    environment:
+      - WORDPRESS_DB_NAME=${MYSQL_DB}
+      - WORDPRESS_DB_PASSWORD=${MYSQL_REMOTE_PASSWORD}
+      - WORDPRESS_DB_USER=${MYSQL_USER}
+      - WORDPRESS_DB_HOST=${WORDPRESS_DB_HOST}
+      - WORDPRESS_ADMIN_NAME=${WORDPRESS_ADMIN_NAME}
+      - WORDPRESS_ADMIN_PASSWORD=${WORDPRESS_ADMIN_PASSWORD}
+      - WORDPRESS_ADMIN_EMAIL=${WORDPRESS_ADMIN_EMAIL}
+      - WORDPRESS_USER_NAME=${WORDPRESS_USER_NAME}
+      - WORDPRESS_USER_PASSWORD=${WORDPRESS_USER_PASSWORD}
+      - WORDPRESS_USER_EMAIL=${WORDPRESS_USER_EMAIL}
+      - WORDPRESS_TITLE=${WORDPRESS_TITLE}
+      - WORDPRESS_DOMAIN=${DOMAIN_NAME}
+    volumes:
+      - wordpress:/www
+    profiles:
+      - main
+    depends_on:
+      mariadb:
+        condition: service_healthy
+  nginx:
+    image: nginx:v1
+    init: true
+    container_name: nginx
+    build:
+      context: ./requirements/nginx
+      args:
+        - CERTS_DIR=${CERTS_DIR}
+        - CERTS_KEY=${CERTS_KEY}
+    networks:
+      - docker-network
+    restart: always
+    environment:
+      - DOMAIN_NAME=${DOMAIN_NAME}
+    volumes:
+      - wordpress:/www
+    ports:
+      - "443:443"
+    profiles:
+      - main
+    depends_on:
+      - wordpress
+
+
+networks:
+  docker-network:
+    name: docker-network
+    driver: bridge
+
+
+volumes:
+  mariadb:
+    name: "mariadb"
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/rmander/data/mariadb
+  wordpress:
+    name: "wordpress"
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/rmander/data/wordpress
